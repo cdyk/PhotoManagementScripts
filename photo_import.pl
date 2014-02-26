@@ -5,9 +5,11 @@ use Time::Piece;
 use Path::Class;
 use Image::ExifTool qw/ :Public /;
 use File::Copy;
+use File::Path qw/ make_path /;
 use File::Find::Rule;
 
-my $pretend = 1;
+my $pretend = 0;
+my $overwrite = 1;
 my $now = localtime;
 my $path = shift || die "Missing import path";
 my $photos_storage = dir( '/tmp/' );   # where photos are stored
@@ -29,8 +31,9 @@ unless( @files ) {
 
 # --- process all found files ------------------------------------------------
 
-foreach my $file (sort @files) {
-    say STDERR '[I] '.$file.': processing.';
+my $i=0;
+FILES: foreach my $file (sort @files) {
+    say STDERR '[I] '.$file.': processing... ('.int($i/@files).'%)';
     
     # try to extract exif image from the image
     my $exifTool = new Image::ExifTool;
@@ -58,12 +61,45 @@ foreach my $file (sort @files) {
                                      ->file( $source->basename );
 
     unless( $pretend ) {
-        copy( $source, $destination ) or die "Copy failed: $!";
-        $exifTemplate->WriteInfo( undef, $destination.'.xmp', 'XMP' ) or die $exifTool->GetValue('Error');
+        my $commit = 1;
+
+        # make sure that path exists
+        make_path $destination->dir()->stringify;
+
+        # check if photo file already exist, and optionally remove it
+        if( -e $destination ) {
+            if( $overwrite ) {
+                unlink $destination;
+            }
+            else {
+                $commit = 0;
+            }
+            say STDERR '[W] '.$destination.' already exist '.($overwrite?'removing':'skipping.');
+        }
+
+        # check if xmp file already exist, and optionally remove it
+        if( -e $destination.'.xmp' ) {
+            if( $overwrite ) {
+                unlink $destination.'.xmp';
+            }
+            else {
+                $commit = 0;
+            }
+            say STDERR '[W] '.$destination.'.xmp'.' already exist '.($overwrite?'removing':'skipping.');
+        }
+
+        # copy file and create xmp
+        if($commit) {
+            say STDERR '[I] copy '.$source.' to '.$destination;
+            say STDERR '[I] create '.$destination.'.xmp';
+            copy( $source, $destination ) or die "Copy failed: $!";
+            $exifTemplate->WriteInfo( undef, $destination.'.xmp', 'XMP' ) or die $exifTool->GetValue('Error');
+        }
     }
     else {
         say STDERR '[I] Would copy '.$source.' to '.$destination;
         say STDERR '[I] Would create '.$destination.'.xmp';
     }
+    $i+=100;
 }
 
