@@ -23,6 +23,32 @@ sub print_help {
         print STDERR "    --remove_jpg_if_cr2  Remove jpg image if cr2 version exists.\n";
 }
 
+sub add_keywords
+{
+    my ($current, $to_add) = @_;
+
+    my @tags = @{$current};
+
+    if(ref($to_add) eq 'ARRAY') {
+        push @tags, @{$to_add};
+    }
+    elsif(ref($to_add) eq 'SCALAR') {
+        push @tags, split /, ?/, $to_add;
+    }
+
+    my %tag_hash = map { $_, 1 } @tags;
+
+    [sort keys %tag_hash];
+}
+
+sub strip_suffix
+{
+    my $path = shift;
+    $path =~ s/\.[^.\/\\]+$//;
+    $path;
+}
+
+
 while( my $arg = shift @ARGV ) {
     if( $arg eq "--help" ) {
         print_help();
@@ -71,7 +97,7 @@ my %tags;
     foreach my $id (keys %tags) {
         my $category = $tags{$id}[1];
         while( $category ) {
-            shift @{$tags{$id}[0]}, $tags{$category}[0][0];
+            unshift @{$tags{$id}[0]}, $tags{$category}[0][0];
             $category = $tags{$category}[1];
         }
     }
@@ -163,6 +189,26 @@ my %tags;
 
         foreach my $version (@{$versions}) {
 
+            # For cr2-files, we use a sidecar file, and for jpg files, we embed.
+            
+            my $embed = (lc(substr($$version[3],-4)) eq ".jpg")
+                     || (lc(substr($$version[3],-5)) eq ".jpeg");
+
+            next if $embed;
+
+
+            # If we embed, merge with existing 
+            if($embed) {
+                my $exifTool = new Image::ExifTool;
+                my $info = $exifTool->ImageInfo($$version[3]) or die $exifTool->GetValue('Error');
+                if(exists $$info{'Subject'}) {
+                    $dc_tags = add_keywords($dc_tags, $$info{'Subject'});
+                }
+                if(exists $$info{'HierarchicalSubject'}) {
+                    $lr_tags = add_keywords($dc_tags, $$info{'HierarchicalSubject'});
+                }
+            }
+
             my $exifTool = new Image::ExifTool;
 
             # Dublin Core namespace tags
@@ -173,15 +219,22 @@ my %tags;
 
             # --- check if we have an existing XMP file ------------------------
             my $xmpfilename = undef;
-            if( -e $$version[3].".xmp" ) {
-                $xmpfilename = $$version[3].".xmp";
+            if($embed) {
+                $xmpfilename = $$version[3];
             }
-            elsif( -e $$version[3].".XMP" ) {
-                $xmpfilename = $$version[3].".XMP";
+            else {
+                my $base = strip_suffix($$version[3]);
+        
+                if( -e $base.".xmp" ) {
+                    $xmpfilename = $base.".xmp";
+                }
+                elsif( -e $base.".XMP" ) {
+                    $xmpfilename = $base.".XMP";
+                }
             }
             # --- XMP file already exist, merge ------------------------------
             if( $xmpfilename ) {
-                print STDERR "[ID='$id'] Updating existing XMP file '$xmpfilename'\n";
+                print STDERR "[ID='$id'] Update '$xmpfilename'\n";
                 if( $dump_xmp ) {
                     $exifTool->WriteInfo( $xmpfilename, '-', 'XMP' ) or die $exifTool->GetValue('Error');
                 }
@@ -191,8 +244,9 @@ my %tags;
             }
             # --- No XMP file, create new ------------------------------------
             else {
-                $xmpfilename = $$version[3].".xmp";
-                print STDERR "[ID='$id'] Creating new XMP file '$xmpfilename'\n";
+                my $base = strip_suffix($$version[3]);
+                $xmpfilename = $base.".xmp";
+                print STDERR "[ID='$id'] Create '$xmpfilename'\n";
 
                 if( $dump_xmp ) {
                     $exifTool->WriteInfo( undef, '-', 'XMP' ) or die $exifTool->GetValue('Error');
