@@ -7,12 +7,13 @@ use URI::Escape;
 use Encode qw(decode encode);
 use Encode::Guess;
 
-my $dryrun            = 1;
-my $dump_xmp          = 0;
-my $remove_jpg_if_cr2 = 1; 
-my $photos_processed  = 0;
-my $tag_encoding      = "Guess";
-my $db_path           = "photos.db"; #"$ENV{'HOME'}/.config/f-spot/photos.db";
+my $dryrun             = 1;
+my $dump_xmp           = 0;
+my $remove_jpg_if_cr2  = 1;
+my $kill_iptc_keywords = 1; 
+my $photos_processed   = 0;
+my $tag_encoding       = "Guess";
+my $db_path            = "photos.db"; #"$ENV{'HOME'}/.config/f-spot/photos.db";
 
 sub print_help {
         print STDERR "Recognized options:\n";
@@ -194,9 +195,6 @@ my %tags;
             my $embed = (lc(substr($$version[3],-4)) eq ".jpg")
                      || (lc(substr($$version[3],-5)) eq ".jpeg");
 
-            next if $embed;
-
-
             # If we embed, merge with existing 
             if($embed) {
                 my $exifTool = new Image::ExifTool;
@@ -205,8 +203,10 @@ my %tags;
                     $dc_tags = add_keywords($dc_tags, $$info{'Subject'});
                 }
                 if(exists $$info{'HierarchicalSubject'}) {
-                    $lr_tags = add_keywords($dc_tags, $$info{'HierarchicalSubject'});
+                    $lr_tags = add_keywords($lr_tags, $$info{'HierarchicalSubject'});
                 }
+            
+                
             }
 
             my $exifTool = new Image::ExifTool;
@@ -216,6 +216,10 @@ my %tags;
 
             # Adobe lightroom tags
             $exifTool->SetNewValue( 'HierarchicalSubject' => $lr_tags ) or die $exifTool->GetValue('Error');
+
+            if($kill_iptc_keywords) {
+                $exifTool->SetNewValue('Keywords', undef);
+            }
 
             # --- check if we have an existing XMP file ------------------------
             my $xmpfilename = undef;
