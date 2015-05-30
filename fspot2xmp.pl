@@ -136,7 +136,7 @@ my %tags;
                 print STDERR "[ID='$id'] Unlinking duplicate '$item'\n";
             }
             unless( $dryrun ) {
-#                unlink @files;
+                unlink @files;
             }
             pop @{$versions};
         }
@@ -186,7 +186,7 @@ my %tags;
                     $exifTool->WriteInfo( $xmpfilename, '-', 'XMP' ) or die $exifTool->GetValue('Error');
                 }
                 unless( $dryrun ) {
-                    #$exifTool->WriteInfo( $xmpfilename ) or die $exifTool->GetValue('Error');
+                    $exifTool->WriteInfo( $xmpfilename ) or die $exifTool->GetValue('Error');
                 }
             }
             # --- No XMP file, create new ------------------------------------
@@ -199,7 +199,7 @@ my %tags;
                 }
 
                 unless( $dryrun ) {
-                    #$exifTool->WriteInfo( undef, $xmpfilename, 'XMP' ) or die $exifTool->GetValue('Error');
+                    $exifTool->WriteInfo( undef, $xmpfilename, 'XMP' ) or die $exifTool->GetValue('Error');
                 }
             }
         }
