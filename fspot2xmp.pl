@@ -71,7 +71,7 @@ my %tags;
     foreach my $id (keys %tags) {
         my $category = $tags{$id}[1];
         while( $category ) {
-            push @{$tags{$id}[0]}, $tags{$category}[0][0];
+            shift @{$tags{$id}[0]}, $tags{$category}[0][0];
             $category = $tags{$category}[1];
         }
     }
